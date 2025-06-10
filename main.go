@@ -1,14 +1,19 @@
 package main
 
 import (
-	"errors"
+	"database/sql"
+
+	_ "github.com/lib/pq"
+
 	"fmt"
 	"os"
 
 	"github.com/a-wayne/gator/internal/config"
+	"github.com/a-wayne/gator/internal/database"
 )
 
 type state struct {
+	db  *database.Queries
 	cfg *config.Config
 }
 
@@ -45,10 +50,21 @@ func main() {
 	s := state{}
 	s.cfg = &c
 
+	db, err := sql.Open("postgres", c.DBURL)
+	if err != nil {
+		fmt.Println("error connecting to database")
+		os.Exit(1)
+	}
+	dbQueries := database.New(db)
+	s.db = dbQueries
+
 	cmds := commands{}
 	cmds.commandMap = make(map[string]func(*state, command) error)
 
 	cmds.register("login", handlerLogin)
+	cmds.register("register", handlerRegister)
+	cmds.register("reset", handlerReset)
+	cmds.register("users", handlerUsers)
 
 	if len(os.Args) < 2 {
 		fmt.Println("not enough arguments")
@@ -71,18 +87,4 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-}
-
-func handlerLogin(s *state, cmd command) error {
-	if len(cmd.args) == 0 {
-		return errors.New("login expects a username")
-	}
-
-	err := s.cfg.SetUser(cmd.args[0])
-	if err != nil {
-		return fmt.Errorf("error logging in: %s", err)
-	}
-
-	fmt.Printf("User '%s' has been logged in.\n", cmd.args[0])
-	return nil
 }
